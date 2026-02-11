@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Sanal Ortamlar (Virtual Environments)
+venv/
+env/
+.env
+.venv/
+
+# İşletim Sistemi Dosyaları
+.DS_Store
+Thumbs.db
+
+# IDE Ayarları (VS Code, PyCharm vb.)
+.vscode/
+.idea/
+
+# Proje Özelinde (Opsiyonel: Modeli de yüklemek isterseniz başındaki # işaretini kaldırın veya bu satırı silin)
+# tetris_dqn.pth
