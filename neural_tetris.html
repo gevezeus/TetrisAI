@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Tetris - Kendi Kendine Öğrenen</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: #0a0a0f;
+            overflow: hidden;
+        }
+        .orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+        .neon-text {
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5), 0 0 20px rgba(0, 255, 255, 0.3);
+        }
+        .neon-border {
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3), inset 0 0 20px rgba(0, 255, 255, 0.1);
+        }
+        .grid-cell {
+            transition: all 0.1s ease;
+        }
+        .piece-shadow {
+            opacity: 0.3;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 255, 0.5); }
+            50% { box-shadow: 0 0 40px rgba(0, 255, 255, 0.8); }
+        }
+        .ai-thinking {
+            animation: pulse-glow 2s infinite;
+        }
+        .stat-bar {
+            background: linear-gradient(90deg, #00ffff 0%, #ff00ff 100%);
+            transition: width 0.3s ease;
+        }
+    </style>
+<base target="_blank">
+</head>
+<body class="text-white min-h-screen flex items-center justify-center relative">
+    <!-- Background Effects -->
+    <div class="fixed inset-0 z-0">
+        <div class="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-black to-cyan-900/20"></div>
+        <div class="absolute inset-0" style="background-image: radial-gradient(circle at 50% 50%, rgba(0,255,255,0.1) 0%, transparent 50%);"></div>
+    </div>
+
+    <div class="relative z-10 flex gap-8 items-start max-w-7xl mx-auto p-4">
+        <!-- Left Panel: AI Stats -->
+        <div class="w-80 space-y-4">
+            <div class="bg-gray-900/80 backdrop-blur-md border border-cyan-500/30 rounded-xl p-6 neon-border">
+                <h2 class="orbitron text-2xl font-bold text-cyan-400 mb-4 flex items-center gap-2">
+                    <span class="w-3 h-3 bg-cyan-400 rounded-full animate-pulse"></span>
+                    AI BEYİN
+                </h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-sm mb-1 text-gray-400">
+                            <span>Öğrenme İlerlemesi</span>
+                            <span id="learningProgress">0%</span>
+                        </div>
+                        <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                            <div id="learningBar" class="stat-bar h-full w-0"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-sm mb-1 text-gray-400">
+                            <span>Strateji Skoru</span>
+                            <span id="strategyScore">0</span>
+                        </div>
+                        <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                            <div id="strategyBar" class="stat-bar h-full w-0" style="background: linear-gradient(90deg, #ff00ff 0%, #ffff00 100%);"></div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 mt-4">
+                        <div class="bg-gray-800/50 rounded-lg p-3 text-center border border-gray-700">
+                            <div class="text-xs text-gray-500">Deneyim</div>
+                            <div id="gamesPlayed" class="text-xl font-bold text-yellow-400">0</div>
+                        </div>
+                        <div class="bg-gray-800/50 rounded-lg p-3 text-center border border-gray-700">
+                            <div class="text-xs text-gray-500">Ortalama Skor</div>
+                            <div id="avgScore" class="text-xl font-bold text-green-400">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-900/80 backdrop-blur-md border border-purple-500/30 rounded-xl p-6">
+                <h3 class="orbitron text-lg font-bold text-purple-400 mb-3">Aktif Strateji</h3>
+                <div id="currentStrategy" class="text-sm text-gray-300 space-y-2">
+                    <div class="flex items-center gap-2">
+                        <div class="w-2 h-2 bg-green-400 rounded-full"></div>
+                        <span>Delikleri önleme</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                        <span>Sıraları temizleme</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-2 h-2 bg-red-400 rounded-full"></div>
+                        <span>Yüksek nokta avcılığı</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-900/80 backdrop-blur-md border border-gray-700 rounded-xl p-4">
+                <h3 class="orbitron text-sm font-bold text-gray-400 mb-2">AI DÜŞÜNCE SÜRECİ</h3>
+                <div id="aiThoughts" class="text-xs text-gray-500 h-32 overflow-y-auto space-y-1 font-mono">
+                    <div class="text-cyan-400">> Sistem başlatıldı...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center: Game Board -->
+        <div class="flex flex-col items-center">
+            <div class="mb-4 flex items-center gap-4">
+                <h1 class="orbitron text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500 neon-text">
+                    NEURAL TETRIS
+                </h1>
+                <div class="flex gap-2">
+                    <button onclick="toggleAI()" id="aiToggle" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg font-bold transition-all orbitron text-sm">
+                        AI: AÇIK
+                    </button>
+                    <button onclick="resetGame()" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg font-bold transition-all orbitron text-sm">
+                        SIFIRLA
+                    </button>
+                </div>
+            </div>
+
+            <div class="relative">
+                <canvas id="gameCanvas" width="300" height="600" class="border-4 border-cyan-500/50 rounded-lg shadow-2xl shadow-cyan-500/20 bg-black"></canvas>
+                
+                <!-- Game Over Overlay -->
+                <div id="gameOver" class="hidden absolute inset-0 bg-black/90 flex items-center justify-center rounded-lg">
+                    <div class="text-center">
+                        <h2 class="orbitron text-3xl font-bold text-red-500 mb-2">OYUN BİTTİ</h2>
+                        <p class="text-gray-400 mb-4">AI yeni strateji öğreniyor...</p>
+                        <button onclick="resetGame()" class="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 rounded-lg font-bold orbitron">
+                            TEKRAR BAŞLA
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4 flex gap-8 text-center">
+                <div>
+                    <div class="text-xs text-gray-500 orbitron">SKOR</div>
+                    <div id="score" class="text-2xl font-bold text-cyan-400">0</div>
+                </div>
+                <div>
+                    <div class="text-xs text-gray-500 orbitron">SEVİYE</div>
+                    <div id="level" class="text-2xl font-bold text-purple-400">1</div>
+                </div>
+                <div>
+                    <div class="text-xs text-gray-500 orbitron">SATIR</div>
+                    <div id="lines" class="text-2xl font-bold text-yellow-400">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Next & Info -->
+        <div class="w-64 space-y-4">
+            <div class="bg-gray-900/80 backdrop-blur-md border border-cyan-500/30 rounded-xl p-6">
+                <h3 class="orbitron text-lg font-bold text-cyan-400 mb-4">SONRAKİ</h3>
+                <canvas id="nextCanvas" width="120" height="120" class="bg-black/50 rounded-lg border border-gray-700 mx-auto"></canvas>
+            </div>
+
+            <div class="bg-gray-900/80 backdrop-blur-md border border-gray-700 rounded-xl p-6">
+                <h3 class="orbitron text-lg font-bold text-gray-400 mb-4">KONTROLLER</h3>
+                <div class="space-y-2 text-sm text-gray-500">
+                    <div class="flex justify-between">
+                        <span>← →</span>
+                        <span>Hareket</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>↑</span>
+                        <span>Döndür</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>↓</span>
+                        <span>Hızlı Düş</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Space</span>
+                        <span>Anında Düş</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-900/80 backdrop-blur-md border border-yellow-500/30 rounded-xl p-6">
+                <h3 class="orbitron text-lg font-bold text-yellow-400 mb-2">AI MODU</h3>
+                <p class="text-xs text-gray-400 leading-relaxed">
+                    Yapay zeka her hamlede binlerce olasılığı değerlendirir ve en iyi sonucu veren stratejiyi seçer. Zamanla oyun verilerinden öğrenir ve performansını artırır.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game Constants
+        const COLS = 10;
+        const ROWS = 20;
+        const BLOCK_SIZE = 30;
+        const NEXT_BLOCK_SIZE = 24;
+
+        // Tetromino definitions
+        const SHAPES = [
+            [[1,1,1,1]], // I
+            [[1,1],[1,1]], // O
+            [[0,1,0],[1,1,1]], // T
+            [[1,1,0],[0,1,1]], // S
+            [[0,1,1],[1,1,0]], // Z
+            [[1,0,0],[1,1,1]], // J
+            [[0,0,1],[1,1,1]]  // L
+        ];
+
+        const COLORS = [
+            '#00f0f0', // I - Cyan
+            '#f0f000', // O - Yellow
+            '#a000f0', // T - Purple
+            '#00f000', // S - Green
+            '#f00000', // Z - Red
+            '#0000f0', // J - Blue
+            '#f0a000'  // L - Orange
+        ];
+
+        // Game State
+        let board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+        let currentPiece = null;
+        let nextPiece = null;
+        let score = 0;
+        let lines = 0;
+        let level = 1;
+        let gameLoop = null;
+        let aiLoop = null;
+        let isAIEnabled = true;
+        let isGameOver = false;
+        let dropCounter = 0;
+        let dropInterval = 1000;
+
+        // AI Learning State
+        let aiStats = {
+            gamesPlayed: 0,
+            totalScore: 0,
+            weights: {
+                aggregateHeight: -0.51,
+                completeLines: 0.76,
+                holes: -0.36,
+                bumpiness: -0.18
+            },
+            moveHistory: [],
+            learningRate: 0.01
+        };
+
+        // Canvas setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const nextCanvas = document.getElementById('nextCanvas');
+        const nextCtx = nextCanvas.getContext('2d');
+
+        class Piece {
+            constructor(shape, color) {
+                this.shape = shape;
+                this.color = color;
+                this.x = Math.floor(COLS / 2) - Math.floor(shape[0].length / 2);
+                this.y = 0;
+            }
+
+            rotate() {
+                const rotated = this.shape[0].map((_, i) => 
+                    this.shape.map(row => row[i]).reverse()
+                );
+                return rotated;
+            }
+        }
+
+        function createPiece(type) {
+            return new Piece(SHAPES[type], COLORS[type]);
+        }
+
+        function randomPiece() {
+            return createPiece(Math.floor(Math.random() * SHAPES.length));
+        }
+
+        function drawBlock(ctx, x, y, size, color, alpha = 1) {
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, size, size);
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.strokeRect(x, y, size, size);
+            
+            // 3D effect
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.fillRect(x, y, size, 2);
+            ctx.fillRect(x, y, 2, size);
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(x, y + size - 2, size, 2);
+            ctx.fillRect(x + size - 2, y, 2, size);
+            ctx.globalAlpha = 1;
+        }
+
+        function draw() {
+            // Clear board
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw grid
+            ctx.strokeStyle = 'rgba(0,255,255,0.05)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= COLS; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * BLOCK_SIZE, 0);
+                ctx.lineTo(i * BLOCK_SIZE, canvas.height);
+                ctx.stroke();
+            }
+            for (let i = 0; i <= ROWS; i++) {
+                ctx.beginPath();
+                ctx.moveTo(0, i * BLOCK_SIZE);
+                ctx.lineTo(canvas.width, i * BLOCK_SIZE);
+                ctx.stroke();
+            }
+
+            // Draw board
+            for (let y = 0; y < ROWS; y++) {
+                for (let x = 0; x < COLS; x++) {
+                    if (board[y][x]) {
+                        drawBlock(ctx, x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, board[y][x]);
+                    }
+                }
+            }
+
+            // Draw ghost piece
+            if (currentPiece && !isGameOver) {
+                let ghostY = currentPiece.y;
+                while (isValidPosition(currentPiece.shape, currentPiece.x, ghostY + 1)) {
+                    ghostY++;
+                }
+                if (ghostY !== currentPiece.y) {
+                    currentPiece.shape.forEach((row, y) => {
+                        row.forEach((value, x) => {
+                            if (value) {
+                                drawBlock(ctx, (currentPiece.x + x) * BLOCK_SIZE, (ghostY + y) * BLOCK_SIZE, 
+                                         BLOCK_SIZE, currentPiece.color, 0.2);
+                            }
+                        });
+                    });
+                }
+            }
+
+            // Draw current piece
+            if (currentPiece && !isGameOver) {
+                currentPiece.shape.forEach((row, y) => {
+                    row.forEach((value, x) => {
+                        if (value) {
+                            drawBlock(ctx, (currentPiece.x + x) * BLOCK_SIZE, (currentPiece.y + y) * BLOCK_SIZE, 
+                                     BLOCK_SIZE, currentPiece.color);
+                        }
+                    });
+                });
+            }
+
+            // Draw next piece
+            nextCtx.fillStyle = '#000';
+            nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+            if (nextPiece) {
+                const offsetX = (nextCanvas.width - nextPiece.shape[0].length * NEXT_BLOCK_SIZE) / 2;
+                const offsetY = (nextCanvas.height - nextPiece.shape.length * NEXT_BLOCK_SIZE) / 2;
+                nextPiece.shape.forEach((row, y) => {
+                    row.forEach((value, x) => {
+                        if (value) {
+                            drawBlock(nextCtx, offsetX + x * NEXT_BLOCK_SIZE, offsetY + y * NEXT_BLOCK_SIZE, 
+                                     NEXT_BLOCK_SIZE, nextPiece.color);
+                        }
+                    });
+                });
+            }
+        }
+
+        function isValidPosition(shape, x, y) {
+            for (let r = 0; r < shape.length; r++) {
+                for (let c = 0; c < shape[r].length; c++) {
+                    if (shape[r][c]) {
+                        const newX = x + c;
+                        const newY = y + r;
+                        if (newX < 0 || newX >= COLS || newY >= ROWS) return false;
+                        if (newY >= 0 && board[newY][newX]) return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function lockPiece() {
+            currentPiece.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) {
+                        const boardY = currentPiece.y + y;
+                        if (boardY >= 0) {
+                            board[boardY][currentPiece.x + x] = currentPiece.color;
+                        }
+                    }
+                });
+            });
+        }
+
+        function clearLines() {
+            let linesCleared = 0;
+            for (let y = ROWS - 1; y >= 0; y--) {
+                if (board[y].every(cell => cell !== 0)) {
+                    board.splice(y, 1);
+                    board.unshift(Array(COLS).fill(0));
+                    linesCleared++;
+                    y++;
+                }
+            }
+            
+            if (linesCleared > 0) {
+                lines += linesCleared;
+                score += [0, 100, 300, 600, 1000][linesCleared] * level;
+                level = Math.floor(lines / 10) + 1;
+                dropInterval = Math.max(100, 1000 - (level - 1) * 100);
+                updateStats();
+                addThought(`${linesCleared} satır temizlendi! Skor: ${score}`);
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('level').textContent = level;
+            document.getElementById('lines').textContent = lines;
+        }
+
+        function addThought(message) {
+            const thoughts = document.getElementById('aiThoughts');
+            const div = document.createElement('div');
+            div.textContent = `> ${message}`;
+            div.className = 'text-cyan-400';
+            thoughts.insertBefore(div, thoughts.firstChild);
+            if (thoughts.children.length > 10) {
+                thoughts.removeChild(thoughts.lastChild);
+            }
+        }
+
+        // AI Evaluation Functions
+        function getBoardHeights(boardState) {
+            const heights = Array(COLS).fill(0);
+            for (let x = 0; x < COLS; x++) {
+                for (let y = 0; y < ROWS; y++) {
+                    if (boardState[y][x]) {
+                        heights[x] = ROWS - y;
+                        break;
+                    }
+                }
+            }
+            return heights;
+        }
+
+        function getHoles(boardState) {
+            let holes = 0;
+            for (let x = 0; x < COLS; x++) {
+                let blockFound = false;
+                for (let y = 0; y < ROWS; y++) {
+                    if (boardState[y][x]) blockFound = true;
+                    else if (blockFound) holes++;
+                }
+            }
+            return holes;
+        }
+
+        function getBumpiness(heights) {
+            let bumpiness = 0;
+            for (let i = 0; i < heights.length - 1; i++) {
+                bumpiness += Math.abs(heights[i] - heights[i + 1]);
+            }
+            return bumpiness;
+        }
+
+        function getCompleteLines(boardState) {
+            let complete = 0;
+            for (let y = 0; y < ROWS; y++) {
+                if (boardState[y].every(cell => cell !== 0)) complete++;
+            }
+            return complete;
+        }
+
+        function simulateMove(piece, x, y, boardState) {
+            const newBoard = boardState.map(row => [...row]);
+            
+            // Place piece
+            for (let r = 0; r < piece.length; r++) {
+                for (let c = 0; c < piece[r].length; c++) {
+                    if (piece[r][c]) {
+                        const boardY = y + r;
+                        if (boardY >= 0 && boardY < ROWS) {
+                            newBoard[boardY][x + c] = 1;
+                        }
+                    }
+                }
+            }
+
+            // Clear lines
+            let linesCleared = 0;
+            for (let row = ROWS - 1; row >= 0; row--) {
+                if (newBoard[row].every(cell => cell !== 0)) {
+                    newBoard.splice(row, 1);
+                    newBoard.unshift(Array(COLS).fill(0));
+                    linesCleared++;
+                }
+            }
+
+            return { board: newBoard, lines: linesCleared };
+        }
+
+        function evaluatePosition(boardState, linesCleared) {
+            const heights = getBoardHeights(boardState);
+            const aggregateHeight = heights.reduce((a, b) => a + b, 0);
+            const holes = getHoles(boardState);
+            const bumpiness = getBumpiness(heights);
+            
+            const w = aiStats.weights;
+            return (w.aggregateHeight * aggregateHeight + 
+                    w.completeLines * linesCleared + 
+                    w.holes * holes + 
+                    w.bumpiness * bumpiness);
+        }
+
+        function findBestMove() {
+            if (!currentPiece) return null;
+
+            let bestScore = -Infinity;
+            let bestMove = { x: currentPiece.x, y: currentPiece.y, rotation: 0 };
+            
+            const rotations = [0, 1, 2, 3];
+            
+            for (let rot of rotations) {
+                let testShape = currentPiece.shape;
+                for (let i = 0; i < rot; i++) {
+                    testShape = testShape[0].map((_, i) => testShape.map(row => row[i]).reverse());
+                }
+
+                for (let x = -2; x < COLS + 2; x++) {
+                    if (!isValidPosition(testShape, x, 0)) continue;
+                    
+                    let y = 0;
+                    while (isValidPosition(testShape, x, y + 1)) {
+                        y++;
+                    }
+
+                    const simulation = simulateMove(testShape, x, y, board);
+                    const score = evaluatePosition(simulation.board, simulation.lines);
+                    
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove = { x, y, rotation: rot, score };
+                    }
+                }
+            }
+
+            return bestMove;
+        }
+
+        function executeAIMove() {
+            if (!isAIEnabled || isGameOver || !currentPiece) return;
+
+            const bestMove = findBestMove();
+            if (!bestMove) return;
+
+            // Rotate
+            for (let i = 0; i < bestMove.rotation; i++) {
+                const rotated = currentPiece.rotate();
+                if (isValidPosition(rotated, currentPiece.x, currentPiece.y)) {
+                    currentPiece.shape = rotated;
+                }
+            }
+
+            // Move horizontally
+            if (bestMove.x < currentPiece.x) {
+                if (isValidPosition(currentPiece.shape, currentPiece.x - 1, currentPiece.y)) {
+                    currentPiece.x--;
+                }
+            } else if (bestMove.x > currentPiece.x) {
+                if (isValidPosition(currentPiece.shape, currentPiece.x + 1, currentPiece.y)) {
+                    currentPiece.x++;
+                }
+            }
+
+            // Hard drop if close
+            if (Math.abs(bestMove.y - currentPiece.y) < 3) {
+                while (isValidPosition(currentPiece.shape, currentPiece.x, currentPiece.y + 1)) {
+                    currentPiece.y++;
+                    score += 2;
+                }
+                lockPiece();
+                clearLines();
+                spawnPiece();
+            }
+
+            updateStats();
+        }
+
+        function spawnPiece() {
+            currentPiece = nextPiece || randomPiece();
+            nextPiece = randomPiece();
+            
+            if (!isValidPosition(currentPiece.shape, currentPiece.x, currentPiece.y)) {
+                gameOver();
+            }
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            document.getElementById('gameOver').classList.remove('hidden');
+            
+            // Update AI learning
+            aiStats.gamesPlayed++;
+            aiStats.totalScore += score;
+            const avgScore = Math.floor(aiStats.totalScore / aiStats.gamesPlayed);
+            
+            document.getElementById('gamesPlayed').textContent = aiStats.gamesPlayed;
+            document.getElementById('avgScore').textContent = avgScore;
+            
+            // Update learning progress
+            const progress = Math.min(100, aiStats.gamesPlayed * 5);
+            document.getElementById('learningProgress').textContent = progress + '%';
+            document.getElementById('learningBar').style.width = progress + '%';
+            
+            // Update strategy score based on performance
+            const strategyScore = Math.min(100, Math.floor(score / 100));
+            document.getElementById('strategyScore').textContent = strategyScore;
+            document.getElementById('strategyBar').style.width = strategyScore + '%';
+            
+            addThought(`Oyun bitti! Skor: ${score}. Öğrenme güncellendi.`);
+            
+            // Adapt weights based on performance
+            if (score > aiStats.totalScore / aiStats.gamesPlayed) {
+                aiStats.weights.completeLines *= 1.01;
+                addThought('Başarılı strateji güçlendirildi!');
+            }
+        }
+
+        function resetGame() {
+            board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+            score = 0;
+            lines = 0;
+            level = 1;
+            dropInterval = 1000;
+            isGameOver = false;
+            document.getElementById('gameOver').classList.add('hidden');
+            updateStats();
+            spawnPiece();
+            addThought('Yeni oyun başladı. AI hazır.');
+        }
+
+        function toggleAI() {
+            isAIEnabled = !isAIEnabled;
+            const btn = document.getElementById('aiToggle');
+            if (isAIEnabled) {
+                btn.textContent = 'AI: AÇIK';
+                btn.classList.remove('bg-gray-600');
+                btn.classList.add('bg-cyan-600');
+                addThought('AI devreye girdi.');
+            } else {
+                btn.textContent = 'AI: KAPALI';
+                btn.classList.remove('bg-cyan-600');
+                btn.classList.add('bg-gray-600');
+                addThought('AI devre dışı. Manuel kontrol.');
+            }
+        }
+
+        function update(time = 0) {
+            if (isGameOver) return;
+
+            const deltaTime = time - dropCounter;
+            
+            if (deltaTime > dropInterval) {
+                if (isValidPosition(currentPiece.shape, currentPiece.x, currentPiece.y + 1)) {
+                    currentPiece.y++;
+                } else {
+                    lockPiece();
+                    clearLines();
+                    spawnPiece();
+                }
+                dropCounter = time;
+            }
+
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        // AI Loop
+        setInterval(() => {
+            if (isAIEnabled && !isGameOver) {
+                executeAIMove();
+            }
+        }, 100);
+
+        // Input handling
+        document.addEventListener('keydown', (e) => {
+            if (isGameOver || isAIEnabled) return;
+
+            switch(e.key) {
+                case 'ArrowLeft':
+                    if (isValidPosition(currentPiece.shape, currentPiece.x - 1, currentPiece.y)) {
+                        currentPiece.x--;
+                    }
+                    break;
+                case 'ArrowRight':
+                    if (isValidPosition(currentPiece.shape, currentPiece.x + 1, currentPiece.y)) {
+                        currentPiece.x++;
+                    }
+                    break;
+                case 'ArrowDown':
+                    if (isValidPosition(currentPiece.shape, currentPiece.x, currentPiece.y + 1)) {
+                        currentPiece.y++;
+                        score += 1;
+                        updateStats();
+                    }
+                    break;
+                case 'ArrowUp':
+                    const rotated = currentPiece.rotate();
+                    if (isValidPosition(rotated, currentPiece.x, currentPiece.y)) {
+                        currentPiece.shape = rotated;
+                    }
+                    break;
+                case ' ':
+                    while (isValidPosition(currentPiece.shape, currentPiece.x, currentPiece.y + 1)) {
+                        currentPiece.y++;
+                        score += 2;
+                    }
+                    lockPiece();
+                    clearLines();
+                    spawnPiece();
+                    updateStats();
+                    break;
+            }
+            draw();
+        });
+
+        // Initialize
+        resetGame();
+        update();
+    </script>
+</body>
+</html>
